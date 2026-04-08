@@ -263,13 +263,17 @@ select {
 .secondary-button,
 .ghost-button {
   appearance: none;
-  border: none;
   border-radius: 14px;
   padding: 12px 16px;
   font: inherit;
   font-weight: 700;
   cursor: pointer;
-  transition: transform 120ms ease, opacity 120ms ease, background 120ms ease;
+  transition:
+    transform 120ms ease,
+    opacity 120ms ease,
+    background 120ms ease,
+    border-color 120ms ease,
+    box-shadow 120ms ease;
 }
 
 .primary-button:hover,
@@ -284,22 +288,41 @@ select {
   cursor: not-allowed;
   opacity: 0.55;
   transform: none;
+  box-shadow: none;
 }
 
 .primary-button {
-  background: linear-gradient(135deg, #7b8cff, #a667ff);
-  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.68);
+  background: #f3f6ff;
+  color: #0b1020;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95), 0 10px 24px rgba(0, 0, 0, 0.18);
+}
+
+.primary-button:hover {
+  background: #ffffff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 1), 0 14px 28px rgba(0, 0, 0, 0.22);
 }
 
 .secondary-button {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.06);
+  color: #f7f8ff;
+}
+
+.secondary-button:hover {
   background: rgba(255, 255, 255, 0.1);
-  color: #fff;
+  border-color: rgba(255, 255, 255, 0.22);
 }
 
 .ghost-button {
+  border: 1px solid rgba(255, 255, 255, 0.1);
   background: transparent;
   color: rgba(226, 232, 255, 0.82);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.ghost-button:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.18);
 }
 
 .results-grid {
