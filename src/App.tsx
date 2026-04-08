@@ -1,8 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ChangeEvent, DragEvent } from 'react'
 import JSZip from 'jszip'
-import { FFmpeg } from '@ffmpeg/ffmpeg'
-import { fetchFile, toBlobURL } from '@ffmpeg/util'
 import './App.css'
 
 type OutputFormat = 'auto' | 'image/jpeg' | 'image/webp'
@@ -39,23 +37,6 @@ type FailedImage = {
   error: string
 }
 
-type AudioSource = {
-  file: File
-  name: string
-  size: number
-  previewUrl: string
-}
-
-type AudioResult = {
-  name: string
-  originalBytes: number
-  convertedBytes: number
-  bitrateKbps: number
-  blob: Blob
-  previewUrl: string
-  mimeType: string
-}
-
 const OUTPUT_OPTIONS: Array<{ value: OutputFormat; label: string }> = [
   { value: 'auto', label: 'Auto (recommended)' },
   { value: 'image/webp', label: 'WebP' },
@@ -63,33 +44,19 @@ const OUTPUT_OPTIONS: Array<{ value: OutputFormat; label: string }> = [
 ]
 
 const MAX_EDGE_OPTIONS = [0, 1024, 1600, 2048, 2560, 3840]
-const AUDIO_BITRATE_OPTIONS = [64, 96, 128, 192]
-const FFMPEG_CORE_BASE_URL = 'https://unpkg.com/@ffmpeg/core@0.12.9/dist/umd'
-
-let ffmpegPromise: Promise<FFmpeg> | null = null
 
 function App() {
   const imageInputRef = useRef<HTMLInputElement | null>(null)
-  const audioInputRef = useRef<HTMLInputElement | null>(null)
 
   const [sourceImages, setSourceImages] = useState<SourceImage[]>([])
   const [results, setResults] = useState<ProcessedImage[]>([])
   const [failures, setFailures] = useState<FailedImage[]>([])
   const [dragging, setDragging] = useState(false)
-  const [audioDragging, setAudioDragging] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
   const [quality, setQuality] = useState(78)
   const [outputFormat, setOutputFormat] = useState<OutputFormat>('auto')
   const [maxEdge, setMaxEdge] = useState(2048)
   const [previewModal, setPreviewModal] = useState<PreviewModal | null>(null)
-  const [activeTab, setActiveTab] = useState<'image' | 'audio'>('image')
-
-  const [audioSource, setAudioSource] = useState<AudioSource | null>(null)
-  const [audioResult, setAudioResult] = useState<AudioResult | null>(null)
-  const [audioBitrate, setAudioBitrate] = useState(128)
-  const [audioStatus, setAudioStatus] = useState('')
-  const [audioError, setAudioError] = useState('')
-  const [isAudioProcessing, setIsAudioProcessing] = useState(false)
 
   const webpSupported = useMemo(() => {
     const canvas = document.createElement('canvas')
@@ -103,37 +70,17 @@ function App() {
     }
   }, [results, sourceImages])
 
-  useEffect(() => {
-    return () => {
-      if (audioSource) {
-        URL.revokeObjectURL(audioSource.previewUrl)
-      }
-      if (audioResult) {
-        URL.revokeObjectURL(audioResult.previewUrl)
-      }
-    }
-  }, [audioSource, audioResult])
-
   const totalOriginal = results.reduce((sum, item) => sum + item.originalBytes, 0)
   const totalCompressed = results.reduce((sum, item) => sum + item.compressedBytes, 0)
   const savedBytes = Math.max(totalOriginal - totalCompressed, 0)
   const savingsRate = totalOriginal > 0 ? Math.round((savedBytes / totalOriginal) * 100) : 0
 
   const handleBrowseImages = () => imageInputRef.current?.click()
-  const handleBrowseAudio = () => audioInputRef.current?.click()
 
   const handleImageFileInput = (event: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files ?? []).filter((file) => file.type.startsWith('image/'))
     if (files.length > 0) {
       replaceSourceFiles(files)
-    }
-    event.target.value = ''
-  }
-
-  const handleAudioFileInput = (event: ChangeEvent<HTMLInputElement>) => {
-    const file = Array.from(event.target.files ?? []).find((item) => item.type.startsWith('audio/'))
-    if (file) {
-      replaceAudioFile(file)
     }
     event.target.value = ''
   }
@@ -144,15 +91,6 @@ function App() {
     const files = Array.from(event.dataTransfer.files).filter((file) => file.type.startsWith('image/'))
     if (files.length > 0) {
       replaceSourceFiles(files)
-    }
-  }
-
-  const handleAudioDrop = (event: DragEvent<HTMLLabelElement>) => {
-    event.preventDefault()
-    setAudioDragging(false)
-    const file = Array.from(event.dataTransfer.files).find((item) => item.type.startsWith('audio/'))
-    if (file) {
-      replaceAudioFile(file)
     }
   }
 
@@ -172,25 +110,6 @@ function App() {
     setFailures([])
   }
 
-  const replaceAudioFile = (file: File) => {
-    if (audioSource) {
-      URL.revokeObjectURL(audioSource.previewUrl)
-    }
-    if (audioResult) {
-      URL.revokeObjectURL(audioResult.previewUrl)
-    }
-
-    setAudioSource({
-      file,
-      name: file.name,
-      size: file.size,
-      previewUrl: URL.createObjectURL(file),
-    })
-    setAudioResult(null)
-    setAudioError('')
-    setAudioStatus('変換の準備ができました')
-  }
-
   const clearAllImages = () => {
     cleanupResultUrls(results)
     cleanupSourceUrls(sourceImages)
@@ -198,19 +117,6 @@ function App() {
     setResults([])
     setFailures([])
     setPreviewModal(null)
-  }
-
-  const clearAudio = () => {
-    if (audioSource) {
-      URL.revokeObjectURL(audioSource.previewUrl)
-    }
-    if (audioResult) {
-      URL.revokeObjectURL(audioResult.previewUrl)
-    }
-    setAudioSource(null)
-    setAudioResult(null)
-    setAudioStatus('')
-    setAudioError('')
   }
 
   const processImages = async () => {
@@ -247,30 +153,6 @@ function App() {
     setIsProcessing(false)
   }
 
-  const processAudio = async () => {
-    if (!audioSource || isAudioProcessing) return
-
-    setIsAudioProcessing(true)
-    setAudioError('')
-    setAudioStatus('音声変換エンジンを読み込み中です')
-
-    if (audioResult) {
-      URL.revokeObjectURL(audioResult.previewUrl)
-      setAudioResult(null)
-    }
-
-    try {
-      const converted = await convertAudioToMp3(audioSource.file, audioBitrate, (status) => setAudioStatus(status))
-      setAudioResult(converted)
-      setAudioStatus('変換が完了しました')
-    } catch (error) {
-      setAudioError(error instanceof Error ? error.message : '音声の変換に失敗しました')
-      setAudioStatus('')
-    } finally {
-      setIsAudioProcessing(false)
-    }
-  }
-
   const downloadOne = (item: ProcessedImage) => {
     const link = document.createElement('a')
     link.href = item.previewUrl
@@ -295,14 +177,6 @@ function App() {
     URL.revokeObjectURL(url)
   }
 
-  const downloadAudio = () => {
-    if (!audioResult) return
-    const link = document.createElement('a')
-    link.href = audioResult.previewUrl
-    link.download = audioResult.name.replace(/\.[^.]+$/, '') + '-compressed.mp3'
-    link.click()
-  }
-
   const openPreview = (src: string, title: string, meta: string) => {
     setPreviewModal({ src, title, meta })
   }
@@ -313,381 +187,220 @@ function App() {
         <section className="hero card">
           <div>
             <p className="eyebrow">Nandaro</p>
-            <h1>画像も音声も、ブラウザでさっと軽く。</h1>
+            <h1>画像を、ブラウザでさっと軽く。</h1>
             <p className="hero-copy">
-              アップロード待ちなし。サーバー処理なし。ファイルは手元のブラウザ内でそのまま圧縮、変換できます。
+              アップロード待ちなし。サーバー処理なし。画像ファイルを手元のブラウザ内でそのまま圧縮できます。
             </p>
           </div>
         </section>
 
-        <section className="tab-bar card">
-          <button
-            type="button"
-            className={`tab-button ${activeTab === 'image' ? 'active' : ''}`}
-            onClick={() => setActiveTab('image')}
-          >
-            画像圧縮
-          </button>
-          <button
-            type="button"
-            className={`tab-button ${activeTab === 'audio' ? 'active' : ''}`}
-            onClick={() => setActiveTab('audio')}
-          >
-            音声変換
-          </button>
-        </section>
-
-        {activeTab === 'image' ? (
-          <>
-            <section className="grid">
-              <div className="card stack-lg">
-                <div className="section-head">
-                  <div>
-                    <h2>画像を追加</h2>
-                    <p>JPEG、PNG、WebP など、一般的な画像ファイルに対応しています。</p>
-                  </div>
-                  {sourceImages.length > 0 ? <span className="pill">{sourceImages.length}枚</span> : null}
-                </div>
-
-                <label
-                  className={`dropzone ${dragging ? 'dragging' : ''}`}
-                  onDragEnter={() => setDragging(true)}
-                  onDragOver={(event) => event.preventDefault()}
-                  onDragLeave={() => setDragging(false)}
-                  onDrop={handleImageDrop}
-                >
-                  <input ref={imageInputRef} type="file" accept="image/*" multiple onChange={handleImageFileInput} hidden />
-                  <div className="dropzone-copy">
-                    <strong>ここに画像をドロップ</strong>
-                    <span>または</span>
-                    <button type="button" className="secondary-button" onClick={handleBrowseImages}>
-                      画像を選ぶ
-                    </button>
-                  </div>
-                </label>
-
-                {sourceImages.length > 0 ? (
-                  <>
-                    <ul className="file-list">
-                      {sourceImages.map((item) => (
-                        <li key={item.id}>
-                          <span className="file-name">{item.name}</span>
-                          <span className="muted">{formatBytes(item.size)}</span>
-                        </li>
-                      ))}
-                    </ul>
-
-                    <div className="preview-grid">
-                      {sourceImages.map((item) => (
-                        <article key={item.id} className="preview-card">
-                          <button
-                            type="button"
-                            className="preview-button"
-                            onClick={() => openPreview(item.previewUrl, item.name, `${formatBytes(item.size)} · original`)}
-                          >
-                            <img src={item.previewUrl} alt={item.name} />
-                          </button>
-                          <div className="preview-meta">
-                            <strong title={item.name}>{item.name}</strong>
-                            <span>{formatBytes(item.size)}</span>
-                          </div>
-                        </article>
-                      ))}
-                    </div>
-                  </>
-                ) : (
-                  <p className="muted">まだ画像は追加されていません。</p>
-                )}
+        <section className="grid">
+          <div className="card stack-lg">
+            <div className="section-head">
+              <div>
+                <h2>画像を追加</h2>
+                <p>JPEG、PNG、WebP など、一般的な画像ファイルに対応しています。</p>
               </div>
+              {sourceImages.length > 0 ? <span className="pill">{sourceImages.length}枚</span> : null}
+            </div>
 
-              <div className="card stack-lg">
-                <div className="section-head">
-                  <div>
-                    <h2>圧縮設定</h2>
-                    <p>まずは迷わない設定だけ。初期値のままでも十分使えます。</p>
-                  </div>
-                </div>
-
-                <div className="controls">
-                  <label>
-                    <span>出力形式</span>
-                    <select value={outputFormat} onChange={(event) => setOutputFormat(event.target.value as OutputFormat)}>
-                      {OUTPUT_OPTIONS.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-
-                  <label>
-                    <span>画質</span>
-                    <div className="range-row">
-                      <input
-                        type="range"
-                        min="45"
-                        max="95"
-                        value={quality}
-                        onChange={(event) => setQuality(Number(event.target.value))}
-                      />
-                      <strong>{quality}</strong>
-                    </div>
-                  </label>
-
-                  <label>
-                    <span>最大辺</span>
-                    <select value={maxEdge} onChange={(event) => setMaxEdge(Number(event.target.value))}>
-                      {MAX_EDGE_OPTIONS.map((value) => (
-                        <option key={value} value={value}>
-                          {value === 0 ? '元のサイズを維持' : `${value}px`}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                </div>
-
-                <div className="note-box">
-                  <strong>補足</strong>
-                  <p>
-                    画像はブラウザ内で再エンコードされるため、EXIF などのメタデータは削除されます。Auto は WebP を優先し、使えない環境では JPEG を選びます。
-                  </p>
-                </div>
-
-                <div className="action-row">
-                  <button type="button" className="primary-button" onClick={processImages} disabled={sourceImages.length === 0 || isProcessing}>
-                    {isProcessing ? '圧縮中…' : `${sourceImages.length || ''}枚を圧縮する`}
-                  </button>
-                  <button type="button" className="ghost-button" onClick={clearAllImages} disabled={isProcessing && sourceImages.length === 0}>
-                    クリア
-                  </button>
-                </div>
+            <label
+              className={`dropzone ${dragging ? 'dragging' : ''}`}
+              onDragEnter={() => setDragging(true)}
+              onDragOver={(event) => event.preventDefault()}
+              onDragLeave={() => setDragging(false)}
+              onDrop={handleImageDrop}
+            >
+              <input ref={imageInputRef} type="file" accept="image/*" multiple onChange={handleImageFileInput} hidden />
+              <div className="dropzone-copy">
+                <strong>ここに画像をドロップ</strong>
+                <span>または</span>
+                <button type="button" className="secondary-button" onClick={handleBrowseImages}>
+                  画像を選ぶ
+                </button>
               </div>
-            </section>
+            </label>
 
-            <section className="card stack-lg">
-              <div className="section-head">
-                <div>
-                  <h2>圧縮結果</h2>
-                  <p>結果を見ながら、そのままダウンロードできます。</p>
-                </div>
-                {results.length > 0 ? (
-                  <button type="button" className="secondary-button" onClick={downloadAll}>
-                    まとめてダウンロード (.zip)
-                  </button>
-                ) : null}
-              </div>
+            {sourceImages.length > 0 ? (
+              <>
+                <ul className="file-list">
+                  {sourceImages.map((item) => (
+                    <li key={item.id}>
+                      <span className="file-name">{item.name}</span>
+                      <span className="muted">{formatBytes(item.size)}</span>
+                    </li>
+                  ))}
+                </ul>
 
-              {results.length > 0 ? (
-                <div className="summary-bar">
-                  <span>{results.length}枚</span>
-                  <span>
-                    {formatBytes(totalOriginal)} → {formatBytes(totalCompressed)}
-                  </span>
-                  <span>{savingsRate}% 削減</span>
-                  <span>{formatBytes(savedBytes)} 軽量化</span>
-                </div>
-              ) : (
-                <p className="muted">圧縮すると、ここに結果が表示されます。</p>
-              )}
-
-              <div className="results-grid">
-                {results.map((item) => {
-                  const saved = Math.max(item.originalBytes - item.compressedBytes, 0)
-                  const rate = Math.round((saved / item.originalBytes) * 100)
-                  return (
-                    <article key={item.id} className="result-card">
+                <div className="preview-grid">
+                  {sourceImages.map((item) => (
+                    <article key={item.id} className="preview-card">
                       <button
                         type="button"
-                        className="result-image-button"
-                        onClick={() =>
-                          openPreview(
-                            item.previewUrl,
-                            renamedFile(item.name, item.mimeType),
-                            `${item.width} × ${item.height} · ${mimeLabel(item.mimeType)} · ${formatBytes(item.compressedBytes)}`,
-                          )
-                        }
+                        className="preview-button"
+                        onClick={() => openPreview(item.previewUrl, item.name, `${formatBytes(item.size)} · original`)}
                       >
                         <img src={item.previewUrl} alt={item.name} />
                       </button>
-                      <div className="result-body">
-                        <div>
-                          <h3>{item.name}</h3>
-                          <p className="muted">
-                            {item.width} × {item.height} · {mimeLabel(item.mimeType)}
-                          </p>
-                        </div>
-                        <div className="stat-grid">
-                          <div>
-                            <span>元サイズ</span>
-                            <strong>{formatBytes(item.originalBytes)}</strong>
-                          </div>
-                          <div>
-                            <span>圧縮後</span>
-                            <strong>{formatBytes(item.compressedBytes)}</strong>
-                          </div>
-                          <div>
-                            <span>削減率</span>
-                            <strong>{rate}%</strong>
-                          </div>
-                        </div>
-                        <button type="button" className="primary-button" onClick={() => downloadOne(item)}>
-                          ダウンロード
-                        </button>
+                      <div className="preview-meta">
+                        <strong title={item.name}>{item.name}</strong>
+                        <span>{formatBytes(item.size)}</span>
                       </div>
                     </article>
-                  )
-                })}
-              </div>
-
-              {failures.length > 0 ? (
-                <div className="error-box">
-                  <strong>一部のファイルで処理に失敗しました</strong>
-                  <ul>
-                    {failures.map((item) => (
-                      <li key={item.id}>
-                        {item.name}: {item.error}
-                      </li>
-                    ))}
-                  </ul>
+                  ))}
                 </div>
-              ) : null}
-            </section>
-          </>
-        ) : null}
+              </>
+            ) : (
+              <p className="muted">まだ画像は追加されていません。</p>
+            )}
+          </div>
 
-        {activeTab === 'audio' ? (
-          <section className="card stack-lg">
+          <div className="card stack-lg">
             <div className="section-head">
               <div>
-                <h2>音声変換</h2>
-                <p>M4A、AAC、WAV、MP3 などの音声を、ブラウザ内で MP3 に変換できます。</p>
+                <h2>圧縮設定</h2>
+                <p>迷わない設定だけに絞っています。初期値のままで十分使えます。</p>
               </div>
-              {audioSource ? <span className="pill">1ファイル</span> : null}
             </div>
 
-            <div className="audio-grid">
-              <div className="stack-lg">
-                <label
-                  className={`dropzone ${audioDragging ? 'dragging' : ''}`}
-                  onDragEnter={() => setAudioDragging(true)}
-                  onDragOver={(event) => event.preventDefault()}
-                  onDragLeave={() => setAudioDragging(false)}
-                  onDrop={handleAudioDrop}
-                >
-                  <input
-                    ref={audioInputRef}
-                    type="file"
-                    accept="audio/*,.m4a,.aac,.mp3,.wav,.ogg,.webm"
-                    onChange={handleAudioFileInput}
-                    hidden
-                  />
-                  <div className="dropzone-copy">
-                    <strong>ここに音声ファイルをドロップ</strong>
-                    <span>または</span>
-                    <button type="button" className="secondary-button" onClick={handleBrowseAudio}>
-                      音声を選ぶ
-                    </button>
-                  </div>
-                </label>
+            <div className="controls">
+              <label>
+                <span>出力形式</span>
+                <select value={outputFormat} onChange={(event) => setOutputFormat(event.target.value as OutputFormat)}>
+                  {OUTPUT_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
 
-                {audioSource ? (
-                  <article className="audio-file-card">
-                    <div className="audio-file-head">
-                      <div>
-                        <strong>{audioSource.name}</strong>
-                        <p className="muted">{formatBytes(audioSource.size)} · source</p>
-                      </div>
-                    </div>
-                    <audio controls src={audioSource.previewUrl} className="audio-player" />
-                  </article>
-                ) : (
-                  <p className="muted">まだ音声ファイルは追加されていません。</p>
-                )}
-              </div>
-
-              <div className="stack-lg">
-                <div className="controls audio-controls">
-                  <label>
-                    <span>出力形式</span>
-                    <select value="mp3" disabled>
-                      <option value="mp3">MP3</option>
-                    </select>
-                  </label>
-
-                  <label>
-                    <span>ビットレート</span>
-                    <select value={audioBitrate} onChange={(event) => setAudioBitrate(Number(event.target.value))}>
-                      {AUDIO_BITRATE_OPTIONS.map((value) => (
-                        <option key={value} value={value}>
-                          {value} kbps
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+              <label>
+                <span>画質</span>
+                <div className="range-row">
+                  <input type="range" min="45" max="95" value={quality} onChange={(event) => setQuality(Number(event.target.value))} />
+                  <strong>{quality}</strong>
                 </div>
+              </label>
 
-                <div className="note-box">
-                  <strong>補足</strong>
-                  <p>
-                    変換はすべてブラウザ内で行います。プライバシー面では強いですが、200MB 級のファイルは端末のメモリや CPU をしっかり使います。PC での利用がおすすめです。
-                  </p>
-                </div>
+              <label>
+                <span>最大辺</span>
+                <select value={maxEdge} onChange={(event) => setMaxEdge(Number(event.target.value))}>
+                  {MAX_EDGE_OPTIONS.map((value) => (
+                    <option key={value} value={value}>
+                      {value === 0 ? '元のサイズを維持' : `${value}px`}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
 
-                <div className="action-row">
-                  <button type="button" className="primary-button" onClick={processAudio} disabled={!audioSource || isAudioProcessing}>
-                    {isAudioProcessing ? '変換中…' : 'MP3に変換する'}
+            <div className="note-box">
+              <strong>補足</strong>
+              <p>
+                画像はブラウザ内で再エンコードされるため、EXIF などのメタデータは削除されます。Auto は WebP を優先し、使えない環境では JPEG を選びます。
+              </p>
+            </div>
+
+            <div className="action-row">
+              <button type="button" className="primary-button" onClick={processImages} disabled={sourceImages.length === 0 || isProcessing}>
+                {isProcessing ? '圧縮中…' : `${sourceImages.length || ''}枚を圧縮する`}
+              </button>
+              <button type="button" className="ghost-button" onClick={clearAllImages} disabled={isProcessing && sourceImages.length === 0}>
+                クリア
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <section className="card stack-lg">
+          <div className="section-head">
+            <div>
+              <h2>圧縮結果</h2>
+              <p>結果を見ながら、そのままダウンロードできます。</p>
+            </div>
+            {results.length > 0 ? (
+              <button type="button" className="secondary-button" onClick={downloadAll}>
+                まとめてダウンロード (.zip)
+              </button>
+            ) : null}
+          </div>
+
+          {results.length > 0 ? (
+            <div className="summary-bar">
+              <span>{results.length}枚</span>
+              <span>
+                {formatBytes(totalOriginal)} → {formatBytes(totalCompressed)}
+              </span>
+              <span>{savingsRate}% 削減</span>
+              <span>{formatBytes(savedBytes)} 軽量化</span>
+            </div>
+          ) : (
+            <p className="muted">圧縮すると、ここに結果が表示されます。</p>
+          )}
+
+          <div className="results-grid">
+            {results.map((item) => {
+              const saved = Math.max(item.originalBytes - item.compressedBytes, 0)
+              const rate = Math.round((saved / item.originalBytes) * 100)
+              return (
+                <article key={item.id} className="result-card">
+                  <button
+                    type="button"
+                    className="result-image-button"
+                    onClick={() =>
+                      openPreview(
+                        item.previewUrl,
+                        renamedFile(item.name, item.mimeType),
+                        `${item.width} × ${item.height} · ${mimeLabel(item.mimeType)} · ${formatBytes(item.compressedBytes)}`,
+                      )
+                    }
+                  >
+                    <img src={item.previewUrl} alt={item.name} />
                   </button>
-                  <button type="button" className="ghost-button" onClick={clearAudio}>
-                    クリア
-                  </button>
-                </div>
-
-                {audioStatus ? (
-                  <div className="summary-bar">
-                    <span>{audioStatus}</span>
-                    {audioSource ? <span>{formatBytes(audioSource.size)} source</span> : null}
-                  </div>
-                ) : null}
-
-                {audioError ? (
-                  <div className="error-box">
-                  <strong>音声の変換に失敗しました</strong>
-                  <p>{audioError}</p>
-                </div>
-              ) : null}
-
-                {audioResult ? (
-                  <article className="audio-result-card">
-                    <div className="audio-file-head">
-                      <div>
-                        <strong>{audioResult.name.replace(/\.[^.]+$/, '')}-compressed.mp3</strong>
-                        <p className="muted">MP3 · {audioResult.bitrateKbps} kbps</p>
-                      </div>
-                      <button type="button" className="primary-button" onClick={downloadAudio}>
-                        MP3をダウンロード
-                      </button>
+                  <div className="result-body">
+                    <div>
+                      <h3>{item.name}</h3>
+                      <p className="muted">
+                        {item.width} × {item.height} · {mimeLabel(item.mimeType)}
+                      </p>
                     </div>
-                    <div className="stat-grid audio-stat-grid">
+                    <div className="stat-grid">
                       <div>
                         <span>元サイズ</span>
-                        <strong>{formatBytes(audioResult.originalBytes)}</strong>
+                        <strong>{formatBytes(item.originalBytes)}</strong>
                       </div>
                       <div>
-                        <span>変換後</span>
-                        <strong>{formatBytes(audioResult.convertedBytes)}</strong>
+                        <span>圧縮後</span>
+                        <strong>{formatBytes(item.compressedBytes)}</strong>
                       </div>
                       <div>
-                        <span>差分</span>
-                        <strong>{formatDelta(audioResult.originalBytes, audioResult.convertedBytes)}</strong>
+                        <span>削減率</span>
+                        <strong>{rate}%</strong>
                       </div>
                     </div>
-                    <audio controls src={audioResult.previewUrl} className="audio-player" />
-                  </article>
-                ) : null}
-              </div>
+                    <button type="button" className="primary-button" onClick={() => downloadOne(item)}>
+                      ダウンロード
+                    </button>
+                  </div>
+                </article>
+              )
+            })}
+          </div>
+
+          {failures.length > 0 ? (
+            <div className="error-box">
+              <strong>一部のファイルで処理に失敗しました</strong>
+              <ul>
+                {failures.map((item) => (
+                  <li key={item.id}>
+                    {item.name}: {item.error}
+                  </li>
+                ))}
+              </ul>
             </div>
-          </section>
-        ) : null}
+          ) : null}
+        </section>
       </main>
 
       {previewModal ? (
@@ -757,57 +470,6 @@ async function compressImage(
   }
 }
 
-async function convertAudioToMp3(file: File, bitrateKbps: number, onStatus: (status: string) => void): Promise<AudioResult> {
-  const ffmpeg = await getFfmpeg()
-  const inputName = makeSafeFileName(file.name)
-  const outputName = `${stripExtension(inputName)}-compressed.mp3`
-
-  onStatus('音声ファイルを読み込み中です')
-  await ffmpeg.writeFile(inputName, await fetchFile(file))
-
-  try {
-    onStatus(`${bitrateKbps}kbps で MP3 に変換中です`)
-    await ffmpeg.exec(['-i', inputName, '-vn', '-map_metadata', '-1', '-codec:a', 'libmp3lame', '-b:a', `${bitrateKbps}k`, outputName])
-
-    const data = await ffmpeg.readFile(outputName)
-    const buffer = data instanceof Uint8Array ? data : new TextEncoder().encode(String(data))
-    const copied = new Uint8Array(buffer.byteLength)
-    copied.set(buffer)
-    const blob = new Blob([copied], { type: 'audio/mpeg' })
-
-    return {
-      name: file.name,
-      originalBytes: file.size,
-      convertedBytes: blob.size,
-      bitrateKbps,
-      blob,
-      previewUrl: URL.createObjectURL(blob),
-      mimeType: 'audio/mpeg',
-    }
-  } finally {
-    await safeDelete(ffmpeg, inputName)
-    await safeDelete(ffmpeg, outputName)
-  }
-}
-
-async function getFfmpeg() {
-  if (!ffmpegPromise) {
-    ffmpegPromise = (async () => {
-      const ffmpeg = new FFmpeg()
-      await ffmpeg.load({
-        coreURL: await toBlobURL(`${FFMPEG_CORE_BASE_URL}/ffmpeg-core.js`, 'text/javascript'),
-        wasmURL: await toBlobURL(`${FFMPEG_CORE_BASE_URL}/ffmpeg-core.wasm`, 'application/wasm'),
-      })
-      return ffmpeg
-    })().catch((error) => {
-      ffmpegPromise = null
-      throw error
-    })
-  }
-
-  return ffmpegPromise
-}
-
 function resolveMimeType(format: OutputFormat, webpSupported: boolean) {
   if (format !== 'auto') return format
   return webpSupported ? 'image/webp' : 'image/jpeg'
@@ -853,14 +515,6 @@ function canvasToBlob(canvas: HTMLCanvasElement, type: string, quality: number) 
   })
 }
 
-async function safeDelete(ffmpeg: FFmpeg, path: string) {
-  try {
-    await ffmpeg.deleteFile(path)
-  } catch {
-    // ignore cleanup failure
-  }
-}
-
 function cleanupResultUrls(items: ProcessedImage[]) {
   items.forEach((item) => URL.revokeObjectURL(item.previewUrl))
 }
@@ -873,12 +527,6 @@ function formatBytes(value: number) {
   if (value < 1024) return `${value} B`
   if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`
   return `${(value / (1024 * 1024)).toFixed(2)} MB`
-}
-
-function formatDelta(before: number, after: number) {
-  const delta = after - before
-  const sign = delta > 0 ? '+' : ''
-  return `${sign}${formatBytes(delta)}`
 }
 
 function mimeLabel(mimeType: string) {
@@ -894,10 +542,6 @@ function renamedFile(originalName: string, mimeType: string) {
 function stripExtension(name: string) {
   const dot = name.lastIndexOf('.')
   return dot === -1 ? name : name.slice(0, dot)
-}
-
-function makeSafeFileName(name: string) {
-  return name.replace(/[^a-zA-Z0-9._-]+/g, '_')
 }
 
 export default App

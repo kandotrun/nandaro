@@ -30,8 +30,7 @@ body {
 
 button,
 input,
-select,
-audio {
+select {
   font: inherit;
 }
 
