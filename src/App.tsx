@@ -188,7 +188,7 @@ function App() {
     })
     setAudioResult(null)
     setAudioError('')
-    setAudioStatus('Ready to convert')
+    setAudioStatus('変換の準備ができました')
   }
 
   const clearAllImages = () => {
@@ -252,7 +252,7 @@ function App() {
 
     setIsAudioProcessing(true)
     setAudioError('')
-    setAudioStatus('Loading audio engine… first run is slower')
+    setAudioStatus('音声変換エンジンを読み込み中です')
 
     if (audioResult) {
       URL.revokeObjectURL(audioResult.previewUrl)
@@ -262,9 +262,9 @@ function App() {
     try {
       const converted = await convertAudioToMp3(audioSource.file, audioBitrate, (status) => setAudioStatus(status))
       setAudioResult(converted)
-      setAudioStatus('Done')
+      setAudioStatus('変換が完了しました')
     } catch (error) {
-      setAudioError(error instanceof Error ? error.message : 'Audio conversion failed')
+      setAudioError(error instanceof Error ? error.message : '音声の変換に失敗しました')
       setAudioStatus('')
     } finally {
       setIsAudioProcessing(false)
@@ -312,11 +312,10 @@ function App() {
       <main className="app-shell">
         <section className="hero card">
           <div>
-            <p className="eyebrow">Nandaro image lab</p>
-            <h1>Compress media in your browser.</h1>
+            <p className="eyebrow">Nandaro</p>
+            <h1>画像も音声も、ブラウザでさっと軽く。</h1>
             <p className="hero-copy">
-              No upload wait, no server-side media processing, no metadata leakage from the original file.
-              Everything happens in your browser.
+              アップロード待ちなし。サーバー処理なし。ファイルは手元のブラウザ内でそのまま圧縮、変換できます。
             </p>
           </div>
         </section>
@@ -327,14 +326,14 @@ function App() {
             className={`tab-button ${activeTab === 'image' ? 'active' : ''}`}
             onClick={() => setActiveTab('image')}
           >
-            Image Compress
+            画像圧縮
           </button>
           <button
             type="button"
             className={`tab-button ${activeTab === 'audio' ? 'active' : ''}`}
             onClick={() => setActiveTab('audio')}
           >
-            Audio Converter
+            音声変換
           </button>
         </section>
 
@@ -344,10 +343,10 @@ function App() {
               <div className="card stack-lg">
                 <div className="section-head">
                   <div>
-                    <h2>1. Add images</h2>
-                    <p>JPEG, PNG, WebP and most browser-decodable still images are fine.</p>
+                    <h2>画像を追加</h2>
+                    <p>JPEG、PNG、WebP など、一般的な画像ファイルに対応しています。</p>
                   </div>
-                  {sourceImages.length > 0 ? <span className="pill">{sourceImages.length} files</span> : null}
+                  {sourceImages.length > 0 ? <span className="pill">{sourceImages.length}枚</span> : null}
                 </div>
 
                 <label
@@ -359,10 +358,10 @@ function App() {
                 >
                   <input ref={imageInputRef} type="file" accept="image/*" multiple onChange={handleImageFileInput} hidden />
                   <div className="dropzone-copy">
-                    <strong>Drop images here</strong>
-                    <span>or</span>
+                    <strong>ここに画像をドロップ</strong>
+                    <span>または</span>
                     <button type="button" className="secondary-button" onClick={handleBrowseImages}>
-                      Choose files
+                      画像を選ぶ
                     </button>
                   </div>
                 </label>
@@ -397,21 +396,21 @@ function App() {
                     </div>
                   </>
                 ) : (
-                  <p className="muted">Nothing loaded yet.</p>
+                  <p className="muted">まだ画像は追加されていません。</p>
                 )}
               </div>
 
               <div className="card stack-lg">
                 <div className="section-head">
                   <div>
-                    <h2>2. Image settings</h2>
-                    <p>Simple first. Good defaults, no nonsense.</p>
+                    <h2>圧縮設定</h2>
+                    <p>まずは迷わない設定だけ。初期値のままでも十分使えます。</p>
                   </div>
                 </div>
 
                 <div className="controls">
                   <label>
-                    <span>Output format</span>
+                    <span>出力形式</span>
                     <select value={outputFormat} onChange={(event) => setOutputFormat(event.target.value as OutputFormat)}>
                       {OUTPUT_OPTIONS.map((option) => (
                         <option key={option.value} value={option.value}>
@@ -422,7 +421,7 @@ function App() {
                   </label>
 
                   <label>
-                    <span>Quality</span>
+                    <span>画質</span>
                     <div className="range-row">
                       <input
                         type="range"
@@ -436,11 +435,11 @@ function App() {
                   </label>
 
                   <label>
-                    <span>Max edge</span>
+                    <span>最大辺</span>
                     <select value={maxEdge} onChange={(event) => setMaxEdge(Number(event.target.value))}>
                       {MAX_EDGE_OPTIONS.map((value) => (
                         <option key={value} value={value}>
-                          {value === 0 ? 'Keep original size' : `${value}px`}
+                          {value === 0 ? '元のサイズを維持' : `${value}px`}
                         </option>
                       ))}
                     </select>
@@ -448,19 +447,18 @@ function App() {
                 </div>
 
                 <div className="note-box">
-                  <strong>Current behavior</strong>
+                  <strong>補足</strong>
                   <p>
-                    Images are re-encoded in the browser, so EXIF metadata is stripped. Auto mode picks WebP when available,
-                    otherwise JPEG.
+                    画像はブラウザ内で再エンコードされるため、EXIF などのメタデータは削除されます。Auto は WebP を優先し、使えない環境では JPEG を選びます。
                   </p>
                 </div>
 
                 <div className="action-row">
                   <button type="button" className="primary-button" onClick={processImages} disabled={sourceImages.length === 0 || isProcessing}>
-                    {isProcessing ? 'Compressing…' : `Compress ${sourceImages.length || ''} image${sourceImages.length === 1 ? '' : 's'}`}
+                    {isProcessing ? '圧縮中…' : `${sourceImages.length || ''}枚を圧縮する`}
                   </button>
                   <button type="button" className="ghost-button" onClick={clearAllImages} disabled={isProcessing && sourceImages.length === 0}>
-                    Clear
+                    クリア
                   </button>
                 </div>
               </div>
@@ -469,27 +467,27 @@ function App() {
             <section className="card stack-lg">
               <div className="section-head">
                 <div>
-                  <h2>3. Image results</h2>
-                  <p>Compression runs fully local. What you see here is ready to download.</p>
+                  <h2>圧縮結果</h2>
+                  <p>結果を見ながら、そのままダウンロードできます。</p>
                 </div>
                 {results.length > 0 ? (
                   <button type="button" className="secondary-button" onClick={downloadAll}>
-                    Download all (.zip)
+                    まとめてダウンロード (.zip)
                   </button>
                 ) : null}
               </div>
 
               {results.length > 0 ? (
                 <div className="summary-bar">
-                  <span>{results.length} done</span>
+                  <span>{results.length}枚</span>
                   <span>
                     {formatBytes(totalOriginal)} → {formatBytes(totalCompressed)}
                   </span>
-                  <span>{savingsRate}% saved</span>
-                  <span>{formatBytes(savedBytes)} smaller</span>
+                  <span>{savingsRate}% 削減</span>
+                  <span>{formatBytes(savedBytes)} 軽量化</span>
                 </div>
               ) : (
-                <p className="muted">Run compression to see output here.</p>
+                <p className="muted">圧縮すると、ここに結果が表示されます。</p>
               )}
 
               <div className="results-grid">
@@ -520,20 +518,20 @@ function App() {
                         </div>
                         <div className="stat-grid">
                           <div>
-                            <span>Original</span>
+                            <span>元サイズ</span>
                             <strong>{formatBytes(item.originalBytes)}</strong>
                           </div>
                           <div>
-                            <span>Compressed</span>
+                            <span>圧縮後</span>
                             <strong>{formatBytes(item.compressedBytes)}</strong>
                           </div>
                           <div>
-                            <span>Saved</span>
+                            <span>削減率</span>
                             <strong>{rate}%</strong>
                           </div>
                         </div>
                         <button type="button" className="primary-button" onClick={() => downloadOne(item)}>
-                          Download
+                          ダウンロード
                         </button>
                       </div>
                     </article>
@@ -543,7 +541,7 @@ function App() {
 
               {failures.length > 0 ? (
                 <div className="error-box">
-                  <strong>Some files failed</strong>
+                  <strong>一部のファイルで処理に失敗しました</strong>
                   <ul>
                     {failures.map((item) => (
                       <li key={item.id}>
@@ -561,10 +559,10 @@ function App() {
           <section className="card stack-lg">
             <div className="section-head">
               <div>
-                <h2>Audio converter</h2>
-                <p>M4A, AAC, WAV, MP3 and other browser-readable audio can be converted to MP3 locally.</p>
+                <h2>音声変換</h2>
+                <p>M4A、AAC、WAV、MP3 などの音声を、ブラウザ内で MP3 に変換できます。</p>
               </div>
-              {audioSource ? <span className="pill">1 file</span> : null}
+              {audioSource ? <span className="pill">1ファイル</span> : null}
             </div>
 
             <div className="audio-grid">
@@ -584,10 +582,10 @@ function App() {
                     hidden
                   />
                   <div className="dropzone-copy">
-                    <strong>Drop one audio file here</strong>
-                    <span>or</span>
+                    <strong>ここに音声ファイルをドロップ</strong>
+                    <span>または</span>
                     <button type="button" className="secondary-button" onClick={handleBrowseAudio}>
-                      Choose audio
+                      音声を選ぶ
                     </button>
                   </div>
                 </label>
@@ -603,21 +601,21 @@ function App() {
                     <audio controls src={audioSource.previewUrl} className="audio-player" />
                   </article>
                 ) : (
-                  <p className="muted">No audio loaded yet.</p>
+                  <p className="muted">まだ音声ファイルは追加されていません。</p>
                 )}
               </div>
 
               <div className="stack-lg">
                 <div className="controls audio-controls">
                   <label>
-                    <span>Output</span>
+                    <span>出力形式</span>
                     <select value="mp3" disabled>
                       <option value="mp3">MP3</option>
                     </select>
                   </label>
 
                   <label>
-                    <span>Bitrate</span>
+                    <span>ビットレート</span>
                     <select value={audioBitrate} onChange={(event) => setAudioBitrate(Number(event.target.value))}>
                       {AUDIO_BITRATE_OPTIONS.map((value) => (
                         <option key={value} value={value}>
@@ -629,19 +627,18 @@ function App() {
                 </div>
 
                 <div className="note-box">
-                  <strong>Reality check</strong>
+                  <strong>補足</strong>
                   <p>
-                    This stays browser-only, which is great for privacy, but 200MB files still hit local memory and CPU hard.
-                    Desktop should be fine. Older phones may struggle.
+                    変換はすべてブラウザ内で行います。プライバシー面では強いですが、200MB 級のファイルは端末のメモリや CPU をしっかり使います。PC での利用がおすすめです。
                   </p>
                 </div>
 
                 <div className="action-row">
                   <button type="button" className="primary-button" onClick={processAudio} disabled={!audioSource || isAudioProcessing}>
-                    {isAudioProcessing ? 'Converting…' : 'Convert to MP3'}
+                    {isAudioProcessing ? '変換中…' : 'MP3に変換する'}
                   </button>
                   <button type="button" className="ghost-button" onClick={clearAudio}>
-                    Clear
+                    クリア
                   </button>
                 </div>
 
@@ -654,10 +651,10 @@ function App() {
 
                 {audioError ? (
                   <div className="error-box">
-                    <strong>Audio conversion failed</strong>
-                    <p>{audioError}</p>
-                  </div>
-                ) : null}
+                  <strong>音声の変換に失敗しました</strong>
+                  <p>{audioError}</p>
+                </div>
+              ) : null}
 
                 {audioResult ? (
                   <article className="audio-result-card">
@@ -667,20 +664,20 @@ function App() {
                         <p className="muted">MP3 · {audioResult.bitrateKbps} kbps</p>
                       </div>
                       <button type="button" className="primary-button" onClick={downloadAudio}>
-                        Download MP3
+                        MP3をダウンロード
                       </button>
                     </div>
                     <div className="stat-grid audio-stat-grid">
                       <div>
-                        <span>Original</span>
+                        <span>元サイズ</span>
                         <strong>{formatBytes(audioResult.originalBytes)}</strong>
                       </div>
                       <div>
-                        <span>Converted</span>
+                        <span>変換後</span>
                         <strong>{formatBytes(audioResult.convertedBytes)}</strong>
                       </div>
                       <div>
-                        <span>Delta</span>
+                        <span>差分</span>
                         <strong>{formatDelta(audioResult.originalBytes, audioResult.convertedBytes)}</strong>
                       </div>
                     </div>
@@ -765,11 +762,11 @@ async function convertAudioToMp3(file: File, bitrateKbps: number, onStatus: (sta
   const inputName = makeSafeFileName(file.name)
   const outputName = `${stripExtension(inputName)}-compressed.mp3`
 
-  onStatus('Reading audio file…')
+  onStatus('音声ファイルを読み込み中です')
   await ffmpeg.writeFile(inputName, await fetchFile(file))
 
   try {
-    onStatus(`Converting to MP3 at ${bitrateKbps} kbps…`)
+    onStatus(`${bitrateKbps}kbps で MP3 に変換中です`)
     await ffmpeg.exec(['-i', inputName, '-vn', '-map_metadata', '-1', '-codec:a', 'libmp3lame', '-b:a', `${bitrateKbps}k`, outputName])
 
     const data = await ffmpeg.readFile(outputName)
