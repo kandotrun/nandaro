@@ -2,7 +2,7 @@
 
 Browser-only image compression MVP.
 
-<iframe data-testid="embed-iframe" style="border-radius:12px" src="https://open.spotify.com/embed/track/2x7eU1kw78pVAW9MGNWhp7?utm_source=generator" width="100%" height="352" frameBorder="0" allowfullscreen="" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy"></iframe>
+[Nandaro? - Spotify](https://open.spotify.com/track/2x7eU1kw78pVAW9MGNWhp7?si=07656b319add4e41)
 
 ## What it does
 
