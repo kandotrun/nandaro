@@ -5,6 +5,20 @@ import './App.css'
 
 type OutputFormat = 'auto' | 'image/jpeg' | 'image/webp'
 
+type SourceImage = {
+  id: string
+  file: File
+  name: string
+  size: number
+  previewUrl: string
+}
+
+type PreviewModal = {
+  src: string
+  title: string
+  meta: string
+}
+
 type ProcessedImage = {
   id: string
   name: string
@@ -33,7 +47,7 @@ const MAX_EDGE_OPTIONS = [0, 1024, 1600, 2048, 2560, 3840]
 
 function App() {
   const inputRef = useRef<HTMLInputElement | null>(null)
-  const [sourceFiles, setSourceFiles] = useState<File[]>([])
+  const [sourceImages, setSourceImages] = useState<SourceImage[]>([])
   const [results, setResults] = useState<ProcessedImage[]>([])
   const [failures, setFailures] = useState<FailedImage[]>([])
   const [dragging, setDragging] = useState(false)
@@ -41,6 +55,7 @@ function App() {
   const [quality, setQuality] = useState(78)
   const [outputFormat, setOutputFormat] = useState<OutputFormat>('auto')
   const [maxEdge, setMaxEdge] = useState(2048)
+  const [previewModal, setPreviewModal] = useState<PreviewModal | null>(null)
 
   const webpSupported = useMemo(() => {
     const canvas = document.createElement('canvas')
@@ -50,8 +65,9 @@ function App() {
   useEffect(() => {
     return () => {
       cleanupResultUrls(results)
+      cleanupSourceUrls(sourceImages)
     }
-  }, [results])
+  }, [results, sourceImages])
 
   const totalOriginal = results.reduce((sum, item) => sum + item.originalBytes, 0)
   const totalCompressed = results.reduce((sum, item) => sum + item.compressedBytes, 0)
@@ -79,20 +95,31 @@ function App() {
 
   const replaceSourceFiles = (files: File[]) => {
     cleanupResultUrls(results)
-    setSourceFiles(files)
+    cleanupSourceUrls(sourceImages)
+    setSourceImages(
+      files.map((file) => ({
+        id: crypto.randomUUID(),
+        file,
+        name: file.name,
+        size: file.size,
+        previewUrl: URL.createObjectURL(file),
+      })),
+    )
     setResults([])
     setFailures([])
   }
 
   const clearAll = () => {
     cleanupResultUrls(results)
-    setSourceFiles([])
+    cleanupSourceUrls(sourceImages)
+    setSourceImages([])
     setResults([])
     setFailures([])
+    setPreviewModal(null)
   }
 
   const processImages = async () => {
-    if (sourceFiles.length === 0 || isProcessing) return
+    if (sourceImages.length === 0 || isProcessing) return
 
     setIsProcessing(true)
     cleanupResultUrls(results)
@@ -102,9 +129,9 @@ function App() {
     const nextResults: ProcessedImage[] = []
     const nextFailures: FailedImage[] = []
 
-    for (const file of sourceFiles) {
+    for (const source of sourceImages) {
       try {
-        const processed = await compressImage(file, {
+        const processed = await compressImage(source.file, {
           quality,
           maxEdge,
           outputFormat,
@@ -114,7 +141,7 @@ function App() {
       } catch (error) {
         nextFailures.push({
           id: crypto.randomUUID(),
-          name: file.name,
+          name: source.name,
           error: error instanceof Error ? error.message : 'Unknown error',
         })
       }
@@ -149,203 +176,264 @@ function App() {
     URL.revokeObjectURL(url)
   }
 
+  const openPreview = (src: string, title: string, meta: string) => {
+    setPreviewModal({ src, title, meta })
+  }
+
   return (
-    <main className="app-shell">
-      <section className="hero card">
-        <div>
-          <p className="eyebrow">Nandaro image lab</p>
-          <h1>Browser-only image compression.</h1>
-          <p className="hero-copy">
-            No upload wait, no server-side image processing, no metadata leakage from the original file.
-            Everything happens in your browser.
-          </p>
-        </div>
-        <div className="hero-badges">
-          <span>Cloudflare-ready</span>
-          <span>Client-side only</span>
-          <span>Batch download</span>
-        </div>
-      </section>
-
-      <section className="grid">
-        <div className="card stack-lg">
-          <div className="section-head">
-            <div>
-              <h2>1. Add images</h2>
-              <p>JPEG, PNG, WebP and most browser-decodable still images are fine.</p>
-            </div>
-            {sourceFiles.length > 0 ? <span className="pill">{sourceFiles.length} files</span> : null}
+    <>
+      <main className="app-shell">
+        <section className="hero card">
+          <div>
+            <p className="eyebrow">Nandaro image lab</p>
+            <h1>Browser-only image compression.</h1>
+            <p className="hero-copy">
+              No upload wait, no server-side image processing, no metadata leakage from the original file.
+              Everything happens in your browser.
+            </p>
           </div>
-
-          <label
-            className={`dropzone ${dragging ? 'dragging' : ''}`}
-            onDragEnter={() => setDragging(true)}
-            onDragOver={(event) => event.preventDefault()}
-            onDragLeave={() => setDragging(false)}
-            onDrop={handleDrop}
-          >
-            <input ref={inputRef} type="file" accept="image/*" multiple onChange={handleFileInput} hidden />
-            <div className="dropzone-copy">
-              <strong>Drop images here</strong>
-              <span>or</span>
-              <button type="button" className="secondary-button" onClick={handleBrowse}>
-                Choose files
-              </button>
-            </div>
-          </label>
-
-          {sourceFiles.length > 0 ? (
-            <ul className="file-list">
-              {sourceFiles.map((file) => (
-                <li key={`${file.name}-${file.size}`}>
-                  <span className="file-name">{file.name}</span>
-                  <span className="muted">{formatBytes(file.size)}</span>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="muted">Nothing loaded yet.</p>
-          )}
-        </div>
-
-        <div className="card stack-lg">
-          <div className="section-head">
-            <div>
-              <h2>2. Compression settings</h2>
-              <p>Simple first. Good defaults, no nonsense.</p>
-            </div>
+          <div className="hero-badges">
+            <span>Cloudflare-ready</span>
+            <span>Client-side only</span>
+            <span>Batch download</span>
           </div>
+        </section>
 
-          <div className="controls">
-            <label>
-              <span>Output format</span>
-              <select value={outputFormat} onChange={(event) => setOutputFormat(event.target.value as OutputFormat)}>
-                {OUTPUT_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
+        <section className="grid">
+          <div className="card stack-lg">
+            <div className="section-head">
+              <div>
+                <h2>1. Add images</h2>
+                <p>JPEG, PNG, WebP and most browser-decodable still images are fine.</p>
+              </div>
+              {sourceImages.length > 0 ? <span className="pill">{sourceImages.length} files</span> : null}
+            </div>
 
-            <label>
-              <span>Quality</span>
-              <div className="range-row">
-                <input
-                  type="range"
-                  min="45"
-                  max="95"
-                  value={quality}
-                  onChange={(event) => setQuality(Number(event.target.value))}
-                />
-                <strong>{quality}</strong>
+            <label
+              className={`dropzone ${dragging ? 'dragging' : ''}`}
+              onDragEnter={() => setDragging(true)}
+              onDragOver={(event) => event.preventDefault()}
+              onDragLeave={() => setDragging(false)}
+              onDrop={handleDrop}
+            >
+              <input ref={inputRef} type="file" accept="image/*" multiple onChange={handleFileInput} hidden />
+              <div className="dropzone-copy">
+                <strong>Drop images here</strong>
+                <span>or</span>
+                <button type="button" className="secondary-button" onClick={handleBrowse}>
+                  Choose files
+                </button>
               </div>
             </label>
 
-            <label>
-              <span>Max edge</span>
-              <select value={maxEdge} onChange={(event) => setMaxEdge(Number(event.target.value))}>
-                {MAX_EDGE_OPTIONS.map((value) => (
-                  <option key={value} value={value}>
-                    {value === 0 ? 'Keep original size' : `${value}px`}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
+            {sourceImages.length > 0 ? (
+              <>
+                <ul className="file-list">
+                  {sourceImages.map((item) => (
+                    <li key={item.id}>
+                      <span className="file-name">{item.name}</span>
+                      <span className="muted">{formatBytes(item.size)}</span>
+                    </li>
+                  ))}
+                </ul>
 
-          <div className="note-box">
-            <strong>Current behavior</strong>
-            <p>
-              Images are re-encoded in the browser, so EXIF metadata is stripped. Auto mode picks WebP when available,
-              otherwise JPEG.
-            </p>
-          </div>
-
-          <div className="action-row">
-            <button type="button" className="primary-button" onClick={processImages} disabled={sourceFiles.length === 0 || isProcessing}>
-              {isProcessing ? 'Compressing…' : `Compress ${sourceFiles.length || ''} image${sourceFiles.length === 1 ? '' : 's'}`}
-            </button>
-            <button type="button" className="ghost-button" onClick={clearAll} disabled={isProcessing && sourceFiles.length === 0}>
-              Clear
-            </button>
-          </div>
-        </div>
-      </section>
-
-      <section className="card stack-lg">
-        <div className="section-head">
-          <div>
-            <h2>3. Results</h2>
-            <p>Compression runs fully local. What you see here is ready to download.</p>
-          </div>
-          {results.length > 0 ? (
-            <button type="button" className="secondary-button" onClick={downloadAll}>
-              Download all (.zip)
-            </button>
-          ) : null}
-        </div>
-
-        {results.length > 0 ? (
-          <div className="summary-bar">
-            <span>{results.length} done</span>
-            <span>{formatBytes(totalOriginal)} → {formatBytes(totalCompressed)}</span>
-            <span>{savingsRate}% saved</span>
-            <span>{formatBytes(savedBytes)} smaller</span>
-          </div>
-        ) : (
-          <p className="muted">Run compression to see output here.</p>
-        )}
-
-        <div className="results-grid">
-          {results.map((item) => {
-            const saved = Math.max(item.originalBytes - item.compressedBytes, 0)
-            const rate = Math.round((saved / item.originalBytes) * 100)
-            return (
-              <article key={item.id} className="result-card">
-                <img src={item.previewUrl} alt={item.name} />
-                <div className="result-body">
-                  <div>
-                    <h3>{item.name}</h3>
-                    <p className="muted">{item.width} × {item.height} · {mimeLabel(item.mimeType)}</p>
-                  </div>
-                  <div className="stat-grid">
-                    <div>
-                      <span>Original</span>
-                      <strong>{formatBytes(item.originalBytes)}</strong>
-                    </div>
-                    <div>
-                      <span>Compressed</span>
-                      <strong>{formatBytes(item.compressedBytes)}</strong>
-                    </div>
-                    <div>
-                      <span>Saved</span>
-                      <strong>{rate}%</strong>
-                    </div>
-                  </div>
-                  <button type="button" className="primary-button" onClick={() => downloadOne(item)}>
-                    Download
-                  </button>
+                <div className="preview-grid">
+                  {sourceImages.map((item) => (
+                    <article key={item.id} className="preview-card">
+                      <button
+                        type="button"
+                        className="preview-button"
+                        onClick={() => openPreview(item.previewUrl, item.name, `${formatBytes(item.size)} · original`)}
+                      >
+                        <img src={item.previewUrl} alt={item.name} />
+                      </button>
+                      <div className="preview-meta">
+                        <strong title={item.name}>{item.name}</strong>
+                        <span>{formatBytes(item.size)}</span>
+                      </div>
+                    </article>
+                  ))}
                 </div>
-              </article>
-            )
-          })}
-        </div>
-
-        {failures.length > 0 ? (
-          <div className="error-box">
-            <strong>Some files failed</strong>
-            <ul>
-              {failures.map((item) => (
-                <li key={item.id}>
-                  {item.name}: {item.error}
-                </li>
-              ))}
-            </ul>
+              </>
+            ) : (
+              <p className="muted">Nothing loaded yet.</p>
+            )}
           </div>
-        ) : null}
-      </section>
-    </main>
+
+          <div className="card stack-lg">
+            <div className="section-head">
+              <div>
+                <h2>2. Compression settings</h2>
+                <p>Simple first. Good defaults, no nonsense.</p>
+              </div>
+            </div>
+
+            <div className="controls">
+              <label>
+                <span>Output format</span>
+                <select value={outputFormat} onChange={(event) => setOutputFormat(event.target.value as OutputFormat)}>
+                  {OUTPUT_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label>
+                <span>Quality</span>
+                <div className="range-row">
+                  <input
+                    type="range"
+                    min="45"
+                    max="95"
+                    value={quality}
+                    onChange={(event) => setQuality(Number(event.target.value))}
+                  />
+                  <strong>{quality}</strong>
+                </div>
+              </label>
+
+              <label>
+                <span>Max edge</span>
+                <select value={maxEdge} onChange={(event) => setMaxEdge(Number(event.target.value))}>
+                  {MAX_EDGE_OPTIONS.map((value) => (
+                    <option key={value} value={value}>
+                      {value === 0 ? 'Keep original size' : `${value}px`}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            <div className="note-box">
+              <strong>Current behavior</strong>
+              <p>
+                Images are re-encoded in the browser, so EXIF metadata is stripped. Auto mode picks WebP when available,
+                otherwise JPEG.
+              </p>
+            </div>
+
+            <div className="action-row">
+              <button type="button" className="primary-button" onClick={processImages} disabled={sourceImages.length === 0 || isProcessing}>
+                {isProcessing ? 'Compressing…' : `Compress ${sourceImages.length || ''} image${sourceImages.length === 1 ? '' : 's'}`}
+              </button>
+              <button type="button" className="ghost-button" onClick={clearAll} disabled={isProcessing && sourceImages.length === 0}>
+                Clear
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <section className="card stack-lg">
+          <div className="section-head">
+            <div>
+              <h2>3. Results</h2>
+              <p>Compression runs fully local. What you see here is ready to download.</p>
+            </div>
+            {results.length > 0 ? (
+              <button type="button" className="secondary-button" onClick={downloadAll}>
+                Download all (.zip)
+              </button>
+            ) : null}
+          </div>
+
+          {results.length > 0 ? (
+            <div className="summary-bar">
+              <span>{results.length} done</span>
+              <span>
+                {formatBytes(totalOriginal)} → {formatBytes(totalCompressed)}
+              </span>
+              <span>{savingsRate}% saved</span>
+              <span>{formatBytes(savedBytes)} smaller</span>
+            </div>
+          ) : (
+            <p className="muted">Run compression to see output here.</p>
+          )}
+
+          <div className="results-grid">
+            {results.map((item) => {
+              const saved = Math.max(item.originalBytes - item.compressedBytes, 0)
+              const rate = Math.round((saved / item.originalBytes) * 100)
+              return (
+                <article key={item.id} className="result-card">
+                  <button
+                    type="button"
+                    className="result-image-button"
+                    onClick={() =>
+                      openPreview(
+                        item.previewUrl,
+                        renamedFile(item.name, item.mimeType),
+                        `${item.width} × ${item.height} · ${mimeLabel(item.mimeType)} · ${formatBytes(item.compressedBytes)}`,
+                      )
+                    }
+                  >
+                    <img src={item.previewUrl} alt={item.name} />
+                  </button>
+                  <div className="result-body">
+                    <div>
+                      <h3>{item.name}</h3>
+                      <p className="muted">
+                        {item.width} × {item.height} · {mimeLabel(item.mimeType)}
+                      </p>
+                    </div>
+                    <div className="stat-grid">
+                      <div>
+                        <span>Original</span>
+                        <strong>{formatBytes(item.originalBytes)}</strong>
+                      </div>
+                      <div>
+                        <span>Compressed</span>
+                        <strong>{formatBytes(item.compressedBytes)}</strong>
+                      </div>
+                      <div>
+                        <span>Saved</span>
+                        <strong>{rate}%</strong>
+                      </div>
+                    </div>
+                    <button type="button" className="primary-button" onClick={() => downloadOne(item)}>
+                      Download
+                    </button>
+                  </div>
+                </article>
+              )
+            })}
+          </div>
+
+          {failures.length > 0 ? (
+            <div className="error-box">
+              <strong>Some files failed</strong>
+              <ul>
+                {failures.map((item) => (
+                  <li key={item.id}>
+                    {item.name}: {item.error}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+        </section>
+      </main>
+
+      {previewModal ? (
+        <div className="modal-backdrop" onClick={() => setPreviewModal(null)} role="presentation">
+          <div className="modal-card" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true">
+            <div className="modal-head">
+              <div>
+                <strong>{previewModal.title}</strong>
+                <p>{previewModal.meta}</p>
+              </div>
+              <button type="button" className="ghost-button" onClick={() => setPreviewModal(null)}>
+                Close
+              </button>
+            </div>
+            <div className="modal-image-wrap">
+              <img src={previewModal.src} alt={previewModal.title} className="modal-image" />
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </>
   )
 }
 
@@ -440,6 +528,10 @@ function canvasToBlob(canvas: HTMLCanvasElement, type: string, quality: number) 
 }
 
 function cleanupResultUrls(items: ProcessedImage[]) {
+  items.forEach((item) => URL.revokeObjectURL(item.previewUrl))
+}
+
+function cleanupSourceUrls(items: SourceImage[]) {
   items.forEach((item) => URL.revokeObjectURL(item.previewUrl))
 }
 
