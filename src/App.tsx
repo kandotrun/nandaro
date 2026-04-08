@@ -82,6 +82,7 @@ function App() {
   const [outputFormat, setOutputFormat] = useState<OutputFormat>('auto')
   const [maxEdge, setMaxEdge] = useState(2048)
   const [previewModal, setPreviewModal] = useState<PreviewModal | null>(null)
+  const [activeTab, setActiveTab] = useState<'image' | 'audio'>('image')
 
   const [audioSource, setAudioSource] = useState<AudioSource | null>(null)
   const [audioResult, setAudioResult] = useState<AudioResult | null>(null)
@@ -318,361 +319,378 @@ function App() {
               Everything happens in your browser.
             </p>
           </div>
-          <div className="hero-badges">
-            <span>Cloudflare-ready</span>
-            <span>Client-side only</span>
-            <span>Images live</span>
-            <span>Audio beta</span>
-          </div>
         </section>
 
-        <section className="grid">
-          <div className="card stack-lg">
-            <div className="section-head">
-              <div>
-                <h2>1. Add images</h2>
-                <p>JPEG, PNG, WebP and most browser-decodable still images are fine.</p>
+        <section className="tab-bar card">
+          <button
+            type="button"
+            className={`tab-button ${activeTab === 'image' ? 'active' : ''}`}
+            onClick={() => setActiveTab('image')}
+          >
+            Image Compress
+          </button>
+          <button
+            type="button"
+            className={`tab-button ${activeTab === 'audio' ? 'active' : ''}`}
+            onClick={() => setActiveTab('audio')}
+          >
+            Audio Converter
+          </button>
+        </section>
+
+        {activeTab === 'image' ? (
+          <>
+            <section className="grid">
+              <div className="card stack-lg">
+                <div className="section-head">
+                  <div>
+                    <h2>1. Add images</h2>
+                    <p>JPEG, PNG, WebP and most browser-decodable still images are fine.</p>
+                  </div>
+                  {sourceImages.length > 0 ? <span className="pill">{sourceImages.length} files</span> : null}
+                </div>
+
+                <label
+                  className={`dropzone ${dragging ? 'dragging' : ''}`}
+                  onDragEnter={() => setDragging(true)}
+                  onDragOver={(event) => event.preventDefault()}
+                  onDragLeave={() => setDragging(false)}
+                  onDrop={handleImageDrop}
+                >
+                  <input ref={imageInputRef} type="file" accept="image/*" multiple onChange={handleImageFileInput} hidden />
+                  <div className="dropzone-copy">
+                    <strong>Drop images here</strong>
+                    <span>or</span>
+                    <button type="button" className="secondary-button" onClick={handleBrowseImages}>
+                      Choose files
+                    </button>
+                  </div>
+                </label>
+
+                {sourceImages.length > 0 ? (
+                  <>
+                    <ul className="file-list">
+                      {sourceImages.map((item) => (
+                        <li key={item.id}>
+                          <span className="file-name">{item.name}</span>
+                          <span className="muted">{formatBytes(item.size)}</span>
+                        </li>
+                      ))}
+                    </ul>
+
+                    <div className="preview-grid">
+                      {sourceImages.map((item) => (
+                        <article key={item.id} className="preview-card">
+                          <button
+                            type="button"
+                            className="preview-button"
+                            onClick={() => openPreview(item.previewUrl, item.name, `${formatBytes(item.size)} · original`)}
+                          >
+                            <img src={item.previewUrl} alt={item.name} />
+                          </button>
+                          <div className="preview-meta">
+                            <strong title={item.name}>{item.name}</strong>
+                            <span>{formatBytes(item.size)}</span>
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <p className="muted">Nothing loaded yet.</p>
+                )}
               </div>
-              {sourceImages.length > 0 ? <span className="pill">{sourceImages.length} files</span> : null}
-            </div>
 
-            <label
-              className={`dropzone ${dragging ? 'dragging' : ''}`}
-              onDragEnter={() => setDragging(true)}
-              onDragOver={(event) => event.preventDefault()}
-              onDragLeave={() => setDragging(false)}
-              onDrop={handleImageDrop}
-            >
-              <input ref={imageInputRef} type="file" accept="image/*" multiple onChange={handleImageFileInput} hidden />
-              <div className="dropzone-copy">
-                <strong>Drop images here</strong>
-                <span>or</span>
-                <button type="button" className="secondary-button" onClick={handleBrowseImages}>
-                  Choose files
-                </button>
+              <div className="card stack-lg">
+                <div className="section-head">
+                  <div>
+                    <h2>2. Image settings</h2>
+                    <p>Simple first. Good defaults, no nonsense.</p>
+                  </div>
+                </div>
+
+                <div className="controls">
+                  <label>
+                    <span>Output format</span>
+                    <select value={outputFormat} onChange={(event) => setOutputFormat(event.target.value as OutputFormat)}>
+                      {OUTPUT_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label>
+                    <span>Quality</span>
+                    <div className="range-row">
+                      <input
+                        type="range"
+                        min="45"
+                        max="95"
+                        value={quality}
+                        onChange={(event) => setQuality(Number(event.target.value))}
+                      />
+                      <strong>{quality}</strong>
+                    </div>
+                  </label>
+
+                  <label>
+                    <span>Max edge</span>
+                    <select value={maxEdge} onChange={(event) => setMaxEdge(Number(event.target.value))}>
+                      {MAX_EDGE_OPTIONS.map((value) => (
+                        <option key={value} value={value}>
+                          {value === 0 ? 'Keep original size' : `${value}px`}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+
+                <div className="note-box">
+                  <strong>Current behavior</strong>
+                  <p>
+                    Images are re-encoded in the browser, so EXIF metadata is stripped. Auto mode picks WebP when available,
+                    otherwise JPEG.
+                  </p>
+                </div>
+
+                <div className="action-row">
+                  <button type="button" className="primary-button" onClick={processImages} disabled={sourceImages.length === 0 || isProcessing}>
+                    {isProcessing ? 'Compressing…' : `Compress ${sourceImages.length || ''} image${sourceImages.length === 1 ? '' : 's'}`}
+                  </button>
+                  <button type="button" className="ghost-button" onClick={clearAllImages} disabled={isProcessing && sourceImages.length === 0}>
+                    Clear
+                  </button>
+                </div>
               </div>
-            </label>
+            </section>
 
-            {sourceImages.length > 0 ? (
-              <>
-                <ul className="file-list">
-                  {sourceImages.map((item) => (
-                    <li key={item.id}>
-                      <span className="file-name">{item.name}</span>
-                      <span className="muted">{formatBytes(item.size)}</span>
-                    </li>
-                  ))}
-                </ul>
+            <section className="card stack-lg">
+              <div className="section-head">
+                <div>
+                  <h2>3. Image results</h2>
+                  <p>Compression runs fully local. What you see here is ready to download.</p>
+                </div>
+                {results.length > 0 ? (
+                  <button type="button" className="secondary-button" onClick={downloadAll}>
+                    Download all (.zip)
+                  </button>
+                ) : null}
+              </div>
 
-                <div className="preview-grid">
-                  {sourceImages.map((item) => (
-                    <article key={item.id} className="preview-card">
+              {results.length > 0 ? (
+                <div className="summary-bar">
+                  <span>{results.length} done</span>
+                  <span>
+                    {formatBytes(totalOriginal)} → {formatBytes(totalCompressed)}
+                  </span>
+                  <span>{savingsRate}% saved</span>
+                  <span>{formatBytes(savedBytes)} smaller</span>
+                </div>
+              ) : (
+                <p className="muted">Run compression to see output here.</p>
+              )}
+
+              <div className="results-grid">
+                {results.map((item) => {
+                  const saved = Math.max(item.originalBytes - item.compressedBytes, 0)
+                  const rate = Math.round((saved / item.originalBytes) * 100)
+                  return (
+                    <article key={item.id} className="result-card">
                       <button
                         type="button"
-                        className="preview-button"
-                        onClick={() => openPreview(item.previewUrl, item.name, `${formatBytes(item.size)} · original`)}
+                        className="result-image-button"
+                        onClick={() =>
+                          openPreview(
+                            item.previewUrl,
+                            renamedFile(item.name, item.mimeType),
+                            `${item.width} × ${item.height} · ${mimeLabel(item.mimeType)} · ${formatBytes(item.compressedBytes)}`,
+                          )
+                        }
                       >
                         <img src={item.previewUrl} alt={item.name} />
                       </button>
-                      <div className="preview-meta">
-                        <strong title={item.name}>{item.name}</strong>
-                        <span>{formatBytes(item.size)}</span>
+                      <div className="result-body">
+                        <div>
+                          <h3>{item.name}</h3>
+                          <p className="muted">
+                            {item.width} × {item.height} · {mimeLabel(item.mimeType)}
+                          </p>
+                        </div>
+                        <div className="stat-grid">
+                          <div>
+                            <span>Original</span>
+                            <strong>{formatBytes(item.originalBytes)}</strong>
+                          </div>
+                          <div>
+                            <span>Compressed</span>
+                            <strong>{formatBytes(item.compressedBytes)}</strong>
+                          </div>
+                          <div>
+                            <span>Saved</span>
+                            <strong>{rate}%</strong>
+                          </div>
+                        </div>
+                        <button type="button" className="primary-button" onClick={() => downloadOne(item)}>
+                          Download
+                        </button>
                       </div>
                     </article>
-                  ))}
-                </div>
-              </>
-            ) : (
-              <p className="muted">Nothing loaded yet.</p>
-            )}
-          </div>
+                  )
+                })}
+              </div>
 
-          <div className="card stack-lg">
+              {failures.length > 0 ? (
+                <div className="error-box">
+                  <strong>Some files failed</strong>
+                  <ul>
+                    {failures.map((item) => (
+                      <li key={item.id}>
+                        {item.name}: {item.error}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+            </section>
+          </>
+        ) : null}
+
+        {activeTab === 'audio' ? (
+          <section className="card stack-lg">
             <div className="section-head">
               <div>
-                <h2>2. Image settings</h2>
-                <p>Simple first. Good defaults, no nonsense.</p>
+                <h2>Audio converter</h2>
+                <p>M4A, AAC, WAV, MP3 and other browser-readable audio can be converted to MP3 locally.</p>
               </div>
+              {audioSource ? <span className="pill">1 file</span> : null}
             </div>
 
-            <div className="controls">
-              <label>
-                <span>Output format</span>
-                <select value={outputFormat} onChange={(event) => setOutputFormat(event.target.value as OutputFormat)}>
-                  {OUTPUT_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label>
-                <span>Quality</span>
-                <div className="range-row">
+            <div className="audio-grid">
+              <div className="stack-lg">
+                <label
+                  className={`dropzone ${audioDragging ? 'dragging' : ''}`}
+                  onDragEnter={() => setAudioDragging(true)}
+                  onDragOver={(event) => event.preventDefault()}
+                  onDragLeave={() => setAudioDragging(false)}
+                  onDrop={handleAudioDrop}
+                >
                   <input
-                    type="range"
-                    min="45"
-                    max="95"
-                    value={quality}
-                    onChange={(event) => setQuality(Number(event.target.value))}
+                    ref={audioInputRef}
+                    type="file"
+                    accept="audio/*,.m4a,.aac,.mp3,.wav,.ogg,.webm"
+                    onChange={handleAudioFileInput}
+                    hidden
                   />
-                  <strong>{quality}</strong>
-                </div>
-              </label>
+                  <div className="dropzone-copy">
+                    <strong>Drop one audio file here</strong>
+                    <span>or</span>
+                    <button type="button" className="secondary-button" onClick={handleBrowseAudio}>
+                      Choose audio
+                    </button>
+                  </div>
+                </label>
 
-              <label>
-                <span>Max edge</span>
-                <select value={maxEdge} onChange={(event) => setMaxEdge(Number(event.target.value))}>
-                  {MAX_EDGE_OPTIONS.map((value) => (
-                    <option key={value} value={value}>
-                      {value === 0 ? 'Keep original size' : `${value}px`}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-
-            <div className="note-box">
-              <strong>Current behavior</strong>
-              <p>
-                Images are re-encoded in the browser, so EXIF metadata is stripped. Auto mode picks WebP when available,
-                otherwise JPEG.
-              </p>
-            </div>
-
-            <div className="action-row">
-              <button type="button" className="primary-button" onClick={processImages} disabled={sourceImages.length === 0 || isProcessing}>
-                {isProcessing ? 'Compressing…' : `Compress ${sourceImages.length || ''} image${sourceImages.length === 1 ? '' : 's'}`}
-              </button>
-              <button type="button" className="ghost-button" onClick={clearAllImages} disabled={isProcessing && sourceImages.length === 0}>
-                Clear
-              </button>
-            </div>
-          </div>
-        </section>
-
-        <section className="card stack-lg">
-          <div className="section-head">
-            <div>
-              <h2>3. Image results</h2>
-              <p>Compression runs fully local. What you see here is ready to download.</p>
-            </div>
-            {results.length > 0 ? (
-              <button type="button" className="secondary-button" onClick={downloadAll}>
-                Download all (.zip)
-              </button>
-            ) : null}
-          </div>
-
-          {results.length > 0 ? (
-            <div className="summary-bar">
-              <span>{results.length} done</span>
-              <span>
-                {formatBytes(totalOriginal)} → {formatBytes(totalCompressed)}
-              </span>
-              <span>{savingsRate}% saved</span>
-              <span>{formatBytes(savedBytes)} smaller</span>
-            </div>
-          ) : (
-            <p className="muted">Run compression to see output here.</p>
-          )}
-
-          <div className="results-grid">
-            {results.map((item) => {
-              const saved = Math.max(item.originalBytes - item.compressedBytes, 0)
-              const rate = Math.round((saved / item.originalBytes) * 100)
-              return (
-                <article key={item.id} className="result-card">
-                  <button
-                    type="button"
-                    className="result-image-button"
-                    onClick={() =>
-                      openPreview(
-                        item.previewUrl,
-                        renamedFile(item.name, item.mimeType),
-                        `${item.width} × ${item.height} · ${mimeLabel(item.mimeType)} · ${formatBytes(item.compressedBytes)}`,
-                      )
-                    }
-                  >
-                    <img src={item.previewUrl} alt={item.name} />
-                  </button>
-                  <div className="result-body">
-                    <div>
-                      <h3>{item.name}</h3>
-                      <p className="muted">
-                        {item.width} × {item.height} · {mimeLabel(item.mimeType)}
-                      </p>
+                {audioSource ? (
+                  <article className="audio-file-card">
+                    <div className="audio-file-head">
+                      <div>
+                        <strong>{audioSource.name}</strong>
+                        <p className="muted">{formatBytes(audioSource.size)} · source</p>
+                      </div>
                     </div>
-                    <div className="stat-grid">
+                    <audio controls src={audioSource.previewUrl} className="audio-player" />
+                  </article>
+                ) : (
+                  <p className="muted">No audio loaded yet.</p>
+                )}
+              </div>
+
+              <div className="stack-lg">
+                <div className="controls audio-controls">
+                  <label>
+                    <span>Output</span>
+                    <select value="mp3" disabled>
+                      <option value="mp3">MP3</option>
+                    </select>
+                  </label>
+
+                  <label>
+                    <span>Bitrate</span>
+                    <select value={audioBitrate} onChange={(event) => setAudioBitrate(Number(event.target.value))}>
+                      {AUDIO_BITRATE_OPTIONS.map((value) => (
+                        <option key={value} value={value}>
+                          {value} kbps
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+
+                <div className="note-box">
+                  <strong>Reality check</strong>
+                  <p>
+                    This stays browser-only, which is great for privacy, but 200MB files still hit local memory and CPU hard.
+                    Desktop should be fine. Older phones may struggle.
+                  </p>
+                </div>
+
+                <div className="action-row">
+                  <button type="button" className="primary-button" onClick={processAudio} disabled={!audioSource || isAudioProcessing}>
+                    {isAudioProcessing ? 'Converting…' : 'Convert to MP3'}
+                  </button>
+                  <button type="button" className="ghost-button" onClick={clearAudio}>
+                    Clear
+                  </button>
+                </div>
+
+                {audioStatus ? (
+                  <div className="summary-bar">
+                    <span>{audioStatus}</span>
+                    {audioSource ? <span>{formatBytes(audioSource.size)} source</span> : null}
+                  </div>
+                ) : null}
+
+                {audioError ? (
+                  <div className="error-box">
+                    <strong>Audio conversion failed</strong>
+                    <p>{audioError}</p>
+                  </div>
+                ) : null}
+
+                {audioResult ? (
+                  <article className="audio-result-card">
+                    <div className="audio-file-head">
+                      <div>
+                        <strong>{audioResult.name.replace(/\.[^.]+$/, '')}-compressed.mp3</strong>
+                        <p className="muted">MP3 · {audioResult.bitrateKbps} kbps</p>
+                      </div>
+                      <button type="button" className="primary-button" onClick={downloadAudio}>
+                        Download MP3
+                      </button>
+                    </div>
+                    <div className="stat-grid audio-stat-grid">
                       <div>
                         <span>Original</span>
-                        <strong>{formatBytes(item.originalBytes)}</strong>
+                        <strong>{formatBytes(audioResult.originalBytes)}</strong>
                       </div>
                       <div>
-                        <span>Compressed</span>
-                        <strong>{formatBytes(item.compressedBytes)}</strong>
+                        <span>Converted</span>
+                        <strong>{formatBytes(audioResult.convertedBytes)}</strong>
                       </div>
                       <div>
-                        <span>Saved</span>
-                        <strong>{rate}%</strong>
+                        <span>Delta</span>
+                        <strong>{formatDelta(audioResult.originalBytes, audioResult.convertedBytes)}</strong>
                       </div>
                     </div>
-                    <button type="button" className="primary-button" onClick={() => downloadOne(item)}>
-                      Download
-                    </button>
-                  </div>
-                </article>
-              )
-            })}
-          </div>
-
-          {failures.length > 0 ? (
-            <div className="error-box">
-              <strong>Some files failed</strong>
-              <ul>
-                {failures.map((item) => (
-                  <li key={item.id}>
-                    {item.name}: {item.error}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
-        </section>
-
-        <section className="card stack-lg">
-          <div className="section-head">
-            <div>
-              <h2>4. Audio converter (beta)</h2>
-              <p>M4A, AAC, WAV, MP3 and other browser-readable audio can be converted to MP3 locally.</p>
-            </div>
-            {audioSource ? <span className="pill">1 file</span> : null}
-          </div>
-
-          <div className="audio-grid">
-            <div className="stack-lg">
-              <label
-                className={`dropzone ${audioDragging ? 'dragging' : ''}`}
-                onDragEnter={() => setAudioDragging(true)}
-                onDragOver={(event) => event.preventDefault()}
-                onDragLeave={() => setAudioDragging(false)}
-                onDrop={handleAudioDrop}
-              >
-                <input
-                  ref={audioInputRef}
-                  type="file"
-                  accept="audio/*,.m4a,.aac,.mp3,.wav,.ogg,.webm"
-                  onChange={handleAudioFileInput}
-                  hidden
-                />
-                <div className="dropzone-copy">
-                  <strong>Drop one audio file here</strong>
-                  <span>or</span>
-                  <button type="button" className="secondary-button" onClick={handleBrowseAudio}>
-                    Choose audio
-                  </button>
-                </div>
-              </label>
-
-              {audioSource ? (
-                <article className="audio-file-card">
-                  <div className="audio-file-head">
-                    <div>
-                      <strong>{audioSource.name}</strong>
-                      <p className="muted">{formatBytes(audioSource.size)} · source</p>
-                    </div>
-                  </div>
-                  <audio controls src={audioSource.previewUrl} className="audio-player" />
-                </article>
-              ) : (
-                <p className="muted">No audio loaded yet.</p>
-              )}
-            </div>
-
-            <div className="stack-lg">
-              <div className="controls audio-controls">
-                <label>
-                  <span>Output</span>
-                  <select value="mp3" disabled>
-                    <option value="mp3">MP3</option>
-                  </select>
-                </label>
-
-                <label>
-                  <span>Bitrate</span>
-                  <select value={audioBitrate} onChange={(event) => setAudioBitrate(Number(event.target.value))}>
-                    {AUDIO_BITRATE_OPTIONS.map((value) => (
-                      <option key={value} value={value}>
-                        {value} kbps
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                    <audio controls src={audioResult.previewUrl} className="audio-player" />
+                  </article>
+                ) : null}
               </div>
-
-              <div className="note-box">
-                <strong>Reality check</strong>
-                <p>
-                  This stays browser-only, which is great for privacy, but 200MB files still hit local memory and CPU hard.
-                  Desktop should be fine. Older phones may struggle.
-                </p>
-              </div>
-
-              <div className="action-row">
-                <button type="button" className="primary-button" onClick={processAudio} disabled={!audioSource || isAudioProcessing}>
-                  {isAudioProcessing ? 'Converting…' : 'Convert to MP3'}
-                </button>
-                <button type="button" className="ghost-button" onClick={clearAudio}>
-                  Clear
-                </button>
-              </div>
-
-              {audioStatus ? (
-                <div className="summary-bar">
-                  <span>{audioStatus}</span>
-                  {audioSource ? <span>{formatBytes(audioSource.size)} source</span> : null}
-                </div>
-              ) : null}
-
-              {audioError ? (
-                <div className="error-box">
-                  <strong>Audio conversion failed</strong>
-                  <p>{audioError}</p>
-                </div>
-              ) : null}
-
-              {audioResult ? (
-                <article className="audio-result-card">
-                  <div className="audio-file-head">
-                    <div>
-                      <strong>{audioResult.name.replace(/\.[^.]+$/, '')}-compressed.mp3</strong>
-                      <p className="muted">MP3 · {audioResult.bitrateKbps} kbps</p>
-                    </div>
-                    <button type="button" className="primary-button" onClick={downloadAudio}>
-                      Download MP3
-                    </button>
-                  </div>
-                  <div className="stat-grid audio-stat-grid">
-                    <div>
-                      <span>Original</span>
-                      <strong>{formatBytes(audioResult.originalBytes)}</strong>
-                    </div>
-                    <div>
-                      <span>Converted</span>
-                      <strong>{formatBytes(audioResult.convertedBytes)}</strong>
-                    </div>
-                    <div>
-                      <span>Delta</span>
-                      <strong>{formatDelta(audioResult.originalBytes, audioResult.convertedBytes)}</strong>
-                    </div>
-                  </div>
-                  <audio controls src={audioResult.previewUrl} className="audio-player" />
-                </article>
-              ) : null}
             </div>
-          </div>
-        </section>
+          </section>
+        ) : null}
       </main>
 
       {previewModal ? (

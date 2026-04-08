@@ -33,6 +33,37 @@
   margin-bottom: 20px;
 }
 
+.tab-bar {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+  padding: 10px;
+}
+
+.tab-button {
+  appearance: none;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: transparent;
+  color: rgba(226, 232, 255, 0.72);
+  border-radius: 14px;
+  padding: 12px 16px;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+
+.tab-button:hover {
+  background: rgba(255, 255, 255, 0.04);
+  color: #f7f8ff;
+}
+
+.tab-button.active {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
 .eyebrow {
   margin: 0 0 8px;
   font-size: 12px;
@@ -85,6 +116,7 @@
   background: rgba(255, 255, 255, 0.08);
   color: #eff3ff;
   font-size: 13px;
+  white-space: nowrap;
 }
 
 .section-head {
@@ -483,6 +515,11 @@ select {
 @media (max-width: 720px) {
   .app-shell {
     padding: 24px 14px 56px;
+  }
+
+  .tab-bar {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
   }
 
   .card {
