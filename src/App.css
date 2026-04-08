@@ -147,6 +147,41 @@
   gap: 14px;
 }
 
+.audio-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+  gap: 20px;
+}
+
+.audio-file-card,
+.audio-result-card {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.audio-file-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.audio-player {
+  width: 100%;
+}
+
+.audio-controls {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.audio-stat-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .preview-card {
   overflow: hidden;
   border-radius: 18px;
@@ -430,6 +465,7 @@ select {
   .controls,
   .stat-grid,
   .preview-grid,
+  .audio-grid,
   .hero {
     grid-template-columns: 1fr;
     flex-direction: column;
