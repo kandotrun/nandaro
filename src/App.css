@@ -33,6 +33,18 @@
     rgba(255, 255, 255, 0.94);
 }
 
+.music-card {
+  margin-bottom: 20px;
+  display: grid;
+  gap: 16px;
+}
+
+.spotify-embed {
+  width: 100%;
+  border: 0;
+  border-radius: 12px;
+}
+
 .eyebrow {
   margin: 0 0 10px;
   font-size: 12px;

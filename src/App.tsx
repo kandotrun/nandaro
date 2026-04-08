@@ -194,6 +194,26 @@ function App() {
           </div>
         </section>
 
+        <section className="music-card card">
+          <div className="section-head">
+            <div>
+              <h2>サービス名の元ネタ</h2>
+              <p>名前の由来になった、Litty の「Nandaro?」。</p>
+            </div>
+          </div>
+          <iframe
+            data-testid="embed-iframe"
+            className="spotify-embed"
+            src="https://open.spotify.com/embed/track/2x7eU1kw78pVAW9MGNWhp7?utm_source=generator"
+            width="100%"
+            height="152"
+            frameBorder="0"
+            allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+            loading="lazy"
+            title="Nandaro? by Litty on Spotify"
+          />
+        </section>
+
         <section className="grid">
           <div className="card stack-lg">
             <div className="section-head">
